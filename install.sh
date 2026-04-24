@@ -58,41 +58,56 @@ esac
 cd ~
 
 # ============================================================
-# [1/13] System update
+# [1/14] System update
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[1/13]${PINK} ==> Updating system packages\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[1/14]${PINK} ==> Updating system packages\n---------------------------------------------------------------------\n${WHITE}"
 sudo pacman -Syu --noconfirm
 
 # ============================================================
-# [2/13] Install base dependencies
+# [2/14] Setting locale
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[2/13]${PINK} ==> Installing base dependencies\n---------------------------------------------------------------------\n${WHITE}"
-sudo pacman -S --noconfirm --needed git stow base-devel
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[2/14]${PINK} ==> Setting locale\n---------------------------------------------------------------------\n${WHITE}"
+sudo sed -i '/^#en_US.UTF-8 UTF-8/s/^#//' /etc/locale.gen
+sudo locale-gen
+sudo localectl set-locale LANG=en_US.UTF-8
 
 # ============================================================
-# [3/13] Clone dotfiles
+# [3/14] Install base dependencies and yay
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[3/13]${PINK} ==> Cloning dotfiles\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[3/14]${PINK} ==> Installing base dependencies and yay\n---------------------------------------------------------------------\n${WHITE}"
+sudo pacman -S --noconfirm --needed base-devel git
+if ! command -v yay &>/dev/null; then
+    echo -e "${CYAN}  Installing yay-bin from AUR...${WHITE}"
+    git clone --depth=1 https://aur.archlinux.org/yay-bin.git ~/yay-bin
+    cd ~/yay-bin && makepkg -si --noconfirm && cd ~ && rm -rf ~/yay-bin
+else
+    echo -e "${YELLOW}[NOTE]${CYAN} ==> yay is already installed, skipping.${WHITE}"
+fi
+
+# ============================================================
+# [4/14] Clone dotfiles
+# ============================================================
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[4/14]${PINK} ==> Cloning dotfiles\n---------------------------------------------------------------------\n${WHITE}"
 if [[ -d ~/dotfiles ]]; then
     echo -e "${YELLOW}[NOTE]${CYAN} ==> ~/dotfiles already exists, pulling latest changes...${WHITE}"
     cd ~/dotfiles && git pull && cd ~
 else
-    git clone --depth 1 "$DOTFILES_REPO" ~/dotfiles
+    git clone --depth=1 "$DOTFILES_REPO" ~/dotfiles
 fi
 
 # ============================================================
-# [4/13] Make scripts executable
+# [5/14] Make scripts executable
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[4/13]${PINK} ==> Making scripts executable\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[5/14]${PINK} ==> Making scripts executable\n---------------------------------------------------------------------\n${WHITE}"
 chmod +x ~/dotfiles/.config/viegphunt/*
 
 # ============================================================
-# [5/13] Download wallpapers
+# [6/14] Download wallpapers
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[5/13]${PINK} ==> Downloading wallpapers\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[6/14]${PINK} ==> Downloading wallpapers\n---------------------------------------------------------------------\n${WHITE}"
 mkdir -p ~/Pictures/Wallpapers
 if [[ -z "$(ls -A ~/Pictures/Wallpapers 2>/dev/null)" ]]; then
-    git clone --depth 1 "$WALLPAPER_REPO" ~/Wallpaper-Collection
+    git clone --depth=1 "$WALLPAPER_REPO" ~/Wallpaper-Collection
     mv ~/Wallpaper-Collection/Wallpapers/* ~/Pictures/Wallpapers/
     rm -rf ~/Wallpaper-Collection
 else
@@ -100,51 +115,55 @@ else
 fi
 
 # ============================================================
-# [6/13] Install packages
+# [7/14] Install packages
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[6/13]${PINK} ==> Installing packages\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[7/14]${PINK} ==> Installing packages\n---------------------------------------------------------------------\n${WHITE}"
 sleep 0.5
 ~/dotfiles/.config/viegphunt/install_archpkg.sh
 
 # ============================================================
-# [7/13] Enable services
+# [8/14] Enable services
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[7/13]${PINK} ==> Enabling system services\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[8/14]${PINK} ==> Enabling system services\n---------------------------------------------------------------------\n${WHITE}"
 sleep 0.5
 sudo systemctl enable --now bluetooth
 sudo systemctl enable --now NetworkManager
 
 # ============================================================
-# [8/13] Set default terminal for Nemo
+# [9/14] Set default terminal for Nemo
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[8/13]${PINK} ==> Setting Ghostty as default terminal for Nemo\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[9/14]${PINK} ==> Setting Ghostty as default terminal for Nemo\n---------------------------------------------------------------------\n${WHITE}"
 gsettings set org.cinnamon.desktop.default-applications.terminal exec ghostty
 
 # ============================================================
-# [9/13] Apply fonts & cursor
+# [10/14] Apply fonts & cursor
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[9/13]${PINK} ==> Applying fonts and cursor theme\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[10/14]${PINK} ==> Applying fonts and cursor theme\n---------------------------------------------------------------------\n${WHITE}"
 fc-cache -fv
 ~/dotfiles/.config/viegphunt/setcursor.sh
 
 # ============================================================
-# [10/13] Stow dotfiles
+# [11/14] Stow dotfiles
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[10/13]${PINK} ==> Stowing dotfiles\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[11/14]${PINK} ==> Stowing dotfiles\n---------------------------------------------------------------------\n${WHITE}"
+# Backup existing configs before stowing
+if [[ -f ~/dotfiles/.config/viegphunt/backup_config.sh ]]; then
+    cd ~/dotfiles && ./.config/viegphunt/backup_config.sh && cd ~
+fi
 cd ~/dotfiles
 stow -t ~ .
 cd ~
 
 # ============================================================
-# [11/13] Apply GTK themes
+# [12/14] Apply GTK themes
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[11/13]${PINK} ==> Applying GTK themes\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[12/14]${PINK} ==> Applying GTK themes\n---------------------------------------------------------------------\n${WHITE}"
 ~/.config/viegphunt/gtkthemes.sh
 
 # ============================================================
-# [12/13] Configure display manager (SDDM)
+# [13/14] Configure display manager (SDDM)
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[12/13]${PINK} ==> Configuring display manager\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[13/14]${PINK} ==> Configuring display manager\n---------------------------------------------------------------------\n${WHITE}"
 if [[ ! -e /etc/systemd/system/display-manager.service ]]; then
     sudo systemctl enable sddm
     # Write SDDM config (use > not >> to avoid duplicates)
@@ -156,14 +175,18 @@ else
 fi
 
 # ============================================================
-# [13/13] Post-install setup
+# [14/14] Post-install setup
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[13/13]${PINK} ==> Post-install setup\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[14/14]${PINK} ==> Post-install setup\n---------------------------------------------------------------------\n${WHITE}"
 
-# Install oh-my-posh if not present
-if ! command -v oh-my-posh &>/dev/null; then
-    echo -e "${CYAN}  Installing oh-my-posh...${WHITE}"
-    curl -s https://ohmyposh.dev/install.sh | bash -s -- -d /usr/local/bin
+# Change default shell to zsh
+if [[ "$SHELL" != *"zsh"* ]]; then
+    echo -e "${CYAN}  Changing default shell to zsh...${WHITE}"
+    ZSH_PATH="$(command -v zsh)"
+    grep -qxF "$ZSH_PATH" /etc/shells || echo "$ZSH_PATH" | sudo tee -a /etc/shells > /dev/null
+    chsh -s "$ZSH_PATH"
+else
+    echo -e "${YELLOW}[NOTE]${CYAN} ==> zsh is already the default shell.${WHITE}"
 fi
 
 # Install zinit for zsh
@@ -172,12 +195,16 @@ if [[ ! -d "$ZINIT_HOME" ]]; then
     echo -e "${CYAN}  Installing zinit...${WHITE}"
     mkdir -p "$(dirname "$ZINIT_HOME")"
     git clone https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME"
+else
+    echo -e "${YELLOW}[NOTE]${CYAN} ==> zinit is already installed.${WHITE}"
 fi
 
 # Install tmux plugin manager
 if [[ ! -d ~/.tmux/plugins/tpm ]]; then
     echo -e "${CYAN}  Installing tmux plugin manager (TPM)...${WHITE}"
     git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
+else
+    echo -e "${YELLOW}[NOTE]${CYAN} ==> TPM is already installed.${WHITE}"
 fi
 
 # Setup fcitx5 environment (write to profile.d so it's available for all sessions)
@@ -188,6 +215,8 @@ export QT_IM_MODULE=fcitx5
 export XMODIFIERS=@im=fcitx5
 export INPUT_METHOD=fcitx5
 export SDL_IM_MODULE=fcitx5' | sudo tee /etc/profile.d/fcitx5.sh > /dev/null
+else
+    echo -e "${YELLOW}[NOTE]${CYAN} ==> fcitx5 environment already configured.${WHITE}"
 fi
 
 # Fix cursor index.theme if not pointing to macOS
