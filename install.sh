@@ -69,7 +69,11 @@ sudo pacman -Syu --noconfirm
 echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[2/14]${PINK} ==> Setting locale\n---------------------------------------------------------------------\n${WHITE}"
 sudo sed -i '/^#en_US.UTF-8 UTF-8/s/^#//' /etc/locale.gen
 sudo locale-gen
-sudo localectl set-locale LANG=en_US.UTF-8
+# localectl may fail without D-Bus, fall back to writing locale.conf directly
+if ! sudo localectl set-locale LANG=en_US.UTF-8 2>/dev/null; then
+    echo "LANG=en_US.UTF-8" | sudo tee /etc/locale.conf > /dev/null
+    echo -e "${YELLOW}[NOTE]${CYAN} ==> localectl unavailable, wrote /etc/locale.conf directly.${WHITE}"
+fi
 
 # ============================================================
 # [3/14] Install base dependencies and yay
@@ -78,6 +82,11 @@ echo -e "${PINK}\n--------------------------------------------------------------
 sudo pacman -S --noconfirm --needed base-devel git
 if ! command -v yay &>/dev/null; then
     echo -e "${CYAN}  Installing yay-bin from AUR...${WHITE}"
+    # Ensure sudo is configured for current user (needed by makepkg)
+    if ! sudo -n true 2>/dev/null; then
+        echo -e "${YELLOW}[NOTE]${CYAN} ==> makepkg requires sudo without password for pacman.${WHITE}"
+        echo -e "${YELLOW}  If prompted, enter your password.${WHITE}"
+    fi
     git clone --depth=1 https://aur.archlinux.org/yay-bin.git ~/yay-bin
     cd ~/yay-bin && makepkg -si --noconfirm && cd ~ && rm -rf ~/yay-bin
 else
@@ -133,7 +142,10 @@ sudo systemctl enable --now NetworkManager
 # [9/14] Set default terminal for Nemo
 # ============================================================
 echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[9/14]${PINK} ==> Setting Ghostty as default terminal for Nemo\n---------------------------------------------------------------------\n${WHITE}"
-gsettings set org.cinnamon.desktop.default-applications.terminal exec ghostty
+# gsettings may fail without D-Bus session bus (e.g. from pure TTY)
+if ! gsettings set org.cinnamon.desktop.default-applications.terminal exec ghostty 2>/dev/null; then
+    echo -e "${YELLOW}[NOTE]${CYAN} ==> gsettings failed (no D-Bus session). This will be set on first Hyprland login via gtkthemes.sh.${WHITE}"
+fi
 
 # ============================================================
 # [10/14] Apply fonts & cursor
@@ -158,7 +170,10 @@ cd ~
 # [12/14] Apply GTK themes
 # ============================================================
 echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[12/14]${PINK} ==> Applying GTK themes\n---------------------------------------------------------------------\n${WHITE}"
-~/.config/viegphunt/gtkthemes.sh
+# gtkthemes.sh uses gsettings which needs D-Bus; it will run again on first Hyprland login via autostart
+if ! ~/.config/viegphunt/gtkthemes.sh 2>/dev/null; then
+    echo -e "${YELLOW}[NOTE]${CYAN} ==> gsettings failed (no D-Bus session). Themes will be applied on first Hyprland login via autostart.${WHITE}"
+fi
 
 # ============================================================
 # [13/14] Configure display manager (SDDM)
