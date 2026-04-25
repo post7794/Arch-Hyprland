@@ -234,6 +234,21 @@ else
     echo -e "${YELLOW}[NOTE]${CYAN} ==> fcitx5 environment already configured.${WHITE}"
 fi
 
+# Set fcitx5 theme to FluentDark-solid (solid version for non-KWin compositors like Hyprland)
+if [[ -d /usr/share/fcitx5/themes/FluentDark-solid ]] || [[ -d ~/.local/share/fcitx5/themes/FluentDark-solid ]]; then
+    mkdir -p ~/.config/fcitx5/conf
+    if ! grep -q "FluentDark-solid" ~/.config/fcitx5/conf/classicui.conf 2>/dev/null; then
+        echo -e "${CYAN}  Setting fcitx5 theme to FluentDark-solid...${WHITE}"
+        if [[ -f ~/.config/fcitx5/conf/classicui.conf ]]; then
+            sed -i 's/^Theme=.*/Theme=FluentDark-solid/' ~/.config/fcitx5/conf/classicui.conf
+        else
+            echo -e 'Vertical Candidate List=False\nPerScreenDPI=True\nFont="PingFang SC 13"\nTheme=FluentDark-solid' > ~/.config/fcitx5/conf/classicui.conf
+        fi
+    fi
+else
+    echo -e "${YELLOW}[NOTE]${CYAN} ==> FluentDark-solid theme not found yet, will use dotfiles config after stow.${WHITE}"
+fi
+
 # Fix cursor index.theme if not pointing to macOS
 if [[ -f /usr/share/icons/default/index.theme ]]; then
     if ! grep -q "Inherits=macOS" /usr/share/icons/default/index.theme; then
