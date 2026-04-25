@@ -79,7 +79,7 @@ fi
 # [3/14] Install base dependencies and yay
 # ============================================================
 echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[3/14]${PINK} ==> Installing base dependencies and yay\n---------------------------------------------------------------------\n${WHITE}"
-sudo pacman -S --noconfirm --needed base-devel git
+sudo pacman -S --noconfirm --needed base-devel git stow
 if ! command -v yay &>/dev/null; then
     echo -e "${CYAN}  Installing yay-bin from AUR...${WHITE}"
     # Ensure sudo is configured for current user (needed by makepkg)
