@@ -58,15 +58,79 @@ esac
 cd ~
 
 # ============================================================
-# [1/14] System update
+# [1/15] System update
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[1/14]${PINK} ==> Updating system packages\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[1/15]${PINK} ==> Updating system packages\n---------------------------------------------------------------------\n${WHITE}"
 sudo pacman -Syu --noconfirm
 
 # ============================================================
-# [2/14] Setting locale
+# [2/15] Detect GPU and configure NVIDIA
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[2/14]${PINK} ==> Setting locale\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[2/15]${PINK} ==> Detecting GPU and configuring NVIDIA\n---------------------------------------------------------------------\n${WHITE}"
+if lspci -k | grep -A3 VGA | grep -qi "nvidia"; then
+    echo -e "${GREEN}[OK]${CYAN} ==> NVIDIA GPU detected, installing drivers...${WHITE}"
+
+    # Detect kernel to choose the right nvidia package
+    if [[ "$(uname -r)" == *"-zen"* ]]; then
+        NVIDIA_PKG="nvidia-open-dkms"
+        echo -e "${CYAN}  Detected linux-zen kernel, using ${NVIDIA_PKG}.${WHITE}"
+    else
+        NVIDIA_PKG="nvidia-open"
+        echo -e "${CYAN}  Detected standard kernel, using ${NVIDIA_PKG}.${WHITE}"
+    fi
+
+    # Install NVIDIA packages
+    sudo pacman -S --noconfirm --needed "${NVIDIA_PKG}" nvidia-utils nvidia-settings
+
+    # Install kernel headers for DKMS (needed by nvidia-open-dkms)
+    if [[ "${NVIDIA_PKG}" == "nvidia-open-dkms" ]]; then
+        sudo pacman -S --noconfirm --needed linux-zen-headers
+        sudo dkms autoinstall 2>/dev/null || true
+    fi
+
+    # Add nvidia modules to mkinitcpio
+    if ! grep -q "nvidia" /etc/mkinitcpio.conf 2>/dev/null; then
+        echo -e "${CYAN}  Adding NVIDIA modules to mkinitcpio...${WHITE}"
+        sudo sed -i 's/^MODULES=(/MODULES=(nvidia nvidia_modeset nvidia_uvm nvidia_drm/' /etc/mkinitcpio.conf
+    fi
+
+    # Add nvidia-drm.modeset=1 to kernel parameters
+    if [[ -f /etc/kernel/cmdline ]]; then
+        # UKI (systemd-boot) method
+        if ! grep -q "nvidia-drm.modeset=1" /etc/kernel/cmdline; then
+            echo -e "${CYAN}  Adding nvidia-drm.modeset=1 to /etc/kernel/cmdline...${WHITE}"
+            echo " $(cat /etc/kernel/cmdline) nvidia-drm.modeset=1" | sudo tee /etc/kernel/cmdline > /dev/null
+        fi
+    elif [[ -d /boot/loader/entries ]]; then
+        # systemd-boot (non-UKI) method
+        if ! grep -q "nvidia-drm.modeset=1" /boot/loader/entries/*.conf 2>/dev/null; then
+            echo -e "${CYAN}  Adding nvidia-drm.modeset=1 to systemd-boot entries...${WHITE}"
+            sudo sed -i 's/rw$/rw nvidia-drm.modeset=1/' /boot/loader/entries/*.conf
+        fi
+    elif [[ -f /etc/default/grub ]]; then
+        # GRUB method
+        if ! grep -q "nvidia-drm.modeset=1" /etc/default/grub; then
+            echo -e "${CYAN}  Adding nvidia-drm.modeset=1 to GRUB...${WHITE}"
+            sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="/GRUB_CMDLINE_LINUX_DEFAULT="nvidia-drm.modeset=1 /' /etc/default/grub
+            sudo grub-mkconfig -o /boot/grub/grub.cfg
+        fi
+    else
+        echo -e "${YELLOW}[NOTE]${CYAN} ==> Could not detect bootloader. Please manually add nvidia-drm.modeset=1 to your kernel parameters.${WHITE}"
+    fi
+
+    # Rebuild initramfs / UKI
+    echo -e "${CYAN}  Rebuilding initramfs...${WHITE}"
+    sudo mkinitcpio -P 2>/dev/null || sudo mkinitcpio -p linux-zen 2>/dev/null || true
+
+    echo -e "${GREEN}[OK]${CYAN} ==> NVIDIA driver configured.${WHITE}"
+else
+    echo -e "${YELLOW}[NOTE]${CYAN} ==> No NVIDIA GPU detected, skipping NVIDIA setup.${WHITE}"
+fi
+
+# ============================================================
+# [3/15] Setting locale
+# ============================================================
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[3/15]${PINK} ==> Setting locale\n---------------------------------------------------------------------\n${WHITE}"
 sudo sed -i '/^#en_US.UTF-8 UTF-8/s/^#//' /etc/locale.gen
 sudo locale-gen
 # localectl may fail without D-Bus, fall back to writing locale.conf directly
@@ -76,9 +140,9 @@ if ! sudo localectl set-locale LANG=en_US.UTF-8 2>/dev/null; then
 fi
 
 # ============================================================
-# [3/14] Install base dependencies and yay
+# [4/15] Install base dependencies and yay
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[3/14]${PINK} ==> Installing base dependencies and yay\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[4/15]${PINK} ==> Installing base dependencies and yay\n---------------------------------------------------------------------\n${WHITE}"
 sudo pacman -S --noconfirm --needed base-devel git stow
 if ! command -v yay &>/dev/null; then
     echo -e "${CYAN}  Installing yay-bin from AUR...${WHITE}"
@@ -94,9 +158,9 @@ else
 fi
 
 # ============================================================
-# [4/14] Clone dotfiles
+# [5/15] Clone dotfiles
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[4/14]${PINK} ==> Cloning dotfiles\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[5/15]${PINK} ==> Cloning dotfiles\n---------------------------------------------------------------------\n${WHITE}"
 if [[ -d ~/dotfiles ]]; then
     echo -e "${YELLOW}[NOTE]${CYAN} ==> ~/dotfiles already exists, pulling latest changes...${WHITE}"
     cd ~/dotfiles && git pull && cd ~
@@ -105,15 +169,15 @@ else
 fi
 
 # ============================================================
-# [5/14] Make scripts executable
+# [6/15] Make scripts executable
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[5/14]${PINK} ==> Making scripts executable\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[6/15]${PINK} ==> Making scripts executable\n---------------------------------------------------------------------\n${WHITE}"
 chmod +x ~/dotfiles/.config/viegphunt/*
 
 # ============================================================
-# [6/14] Download wallpapers
+# [7/15] Download wallpapers
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[6/14]${PINK} ==> Downloading wallpapers\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[7/15]${PINK} ==> Downloading wallpapers\n---------------------------------------------------------------------\n${WHITE}"
 mkdir -p ~/Pictures/Wallpapers
 if [[ -z "$(ls -A ~/Pictures/Wallpapers 2>/dev/null)" ]]; then
     git clone --depth=1 "$WALLPAPER_REPO" ~/Wallpaper-Collection
@@ -124,40 +188,40 @@ else
 fi
 
 # ============================================================
-# [7/14] Install packages
+# [8/15] Install packages
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[7/14]${PINK} ==> Installing packages\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[8/15]${PINK} ==> Installing packages\n---------------------------------------------------------------------\n${WHITE}"
 sleep 0.5
 ~/dotfiles/.config/viegphunt/install_archpkg.sh
 
 # ============================================================
-# [8/14] Enable services
+# [9/15] Enable services
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[8/14]${PINK} ==> Enabling system services\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[9/15]${PINK} ==> Enabling system services\n---------------------------------------------------------------------\n${WHITE}"
 sleep 0.5
 sudo systemctl enable --now bluetooth
 sudo systemctl enable --now NetworkManager
 
 # ============================================================
-# [9/14] Set default terminal for Nemo
+# [10/15] Set default terminal for Nemo
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[9/14]${PINK} ==> Setting Ghostty as default terminal for Nemo\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[10/15]${PINK} ==> Setting Ghostty as default terminal for Nemo\n---------------------------------------------------------------------\n${WHITE}"
 # gsettings may fail without D-Bus session bus (e.g. from pure TTY)
 if ! gsettings set org.cinnamon.desktop.default-applications.terminal exec ghostty 2>/dev/null; then
     echo -e "${YELLOW}[NOTE]${CYAN} ==> gsettings failed (no D-Bus session). This will be set on first Hyprland login via gtkthemes.sh.${WHITE}"
 fi
 
 # ============================================================
-# [10/14] Apply fonts & cursor
+# [11/15] Apply fonts & cursor
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[10/14]${PINK} ==> Applying fonts and cursor theme\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[11/15]${PINK} ==> Applying fonts and cursor theme\n---------------------------------------------------------------------\n${WHITE}"
 fc-cache -fv
 ~/dotfiles/.config/viegphunt/setcursor.sh
 
 # ============================================================
-# [11/14] Stow dotfiles
+# [12/15] Stow dotfiles
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[11/14]${PINK} ==> Stowing dotfiles\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[12/15]${PINK} ==> Stowing dotfiles\n---------------------------------------------------------------------\n${WHITE}"
 # Backup existing configs before stowing
 if [[ -f ~/dotfiles/.config/viegphunt/backup_config.sh ]]; then
     cd ~/dotfiles && ./.config/viegphunt/backup_config.sh && cd ~
@@ -167,18 +231,18 @@ stow -t ~ .
 cd ~
 
 # ============================================================
-# [12/14] Apply GTK themes
+# [13/15] Apply GTK themes
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[12/14]${PINK} ==> Applying GTK themes\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[13/15]${PINK} ==> Applying GTK themes\n---------------------------------------------------------------------\n${WHITE}"
 # gtkthemes.sh uses gsettings which needs D-Bus; it will run again on first Hyprland login via autostart
 if ! ~/.config/viegphunt/gtkthemes.sh 2>/dev/null; then
     echo -e "${YELLOW}[NOTE]${CYAN} ==> gsettings failed (no D-Bus session). Themes will be applied on first Hyprland login via autostart.${WHITE}"
 fi
 
 # ============================================================
-# [13/14] Configure display manager (SDDM)
+# [14/15] Configure display manager (SDDM)
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[13/14]${PINK} ==> Configuring display manager\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[14/15]${PINK} ==> Configuring display manager\n---------------------------------------------------------------------\n${WHITE}"
 if [[ ! -e /etc/systemd/system/display-manager.service ]]; then
     sudo systemctl enable sddm
     # Write SDDM config (use > not >> to avoid duplicates)
@@ -190,9 +254,9 @@ else
 fi
 
 # ============================================================
-# [14/14] Post-install setup
+# [15/15] Post-install setup
 # ============================================================
-echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[14/14]${PINK} ==> Post-install setup\n---------------------------------------------------------------------\n${WHITE}"
+echo -e "${PINK}\n---------------------------------------------------------------------\n${YELLOW}[15/15]${PINK} ==> Post-install setup\n---------------------------------------------------------------------\n${WHITE}"
 
 # Change default shell to zsh
 if [[ "$SHELL" != *"zsh"* ]]; then
