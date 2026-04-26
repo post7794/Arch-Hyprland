@@ -19,7 +19,7 @@ BLUE="\e[34m"
 CYAN="\e[36m"
 
 DOTFILES_REPO="https://github.com/post7794/Dotfiles.git"
-WALLPAPER_REPO="https://github.com/ViegPhunt/Wallpaper-Collection.git"
+WALLPAPER_REPO="https://github.com/post7794/Wallpaper-Collection.git"
 
 clear
 
